@@ -1356,7 +1356,7 @@ export async function getTokenCount({ endpoint, endpointAPI, endpointAPIKey, sig
 			return await koboldCppTokenCount({ endpoint, endpointAPIKey, signal, ...options });
 		case API_OPENAI_COMPAT:
 			// These endpoints don't have a token count endpoint...
-			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz')
+			if (new URL(endpoint).host === 'api.openai.com' || new URL(endpoint).host === 'api.together.xyz' || new URL(endpoint).host === 'api.deepseek.com')
 				return 0;
 
 			// Each backend that exposes an OpenAI-compatible API may have a different token count endpoint.
@@ -1972,6 +1972,7 @@ function openaiConvertOptions(options, endpoint, isChat) {
 	const isOpenAI = endpoint.toLowerCase().includes("openai.com");
 	const isTogetherAI = endpoint.toLowerCase().includes("together.xyz");
 	const isOpenRouter = endpoint.toLowerCase().includes("openrouter.ai");
+	const isDeepSeek = endpoint.toLowerCase().includes("deepseek.com");
 	const swapOption = (lhs, rhs) => {
 		if (lhs in options) {
 			options[rhs] = options[lhs];
@@ -1987,6 +1988,11 @@ function openaiConvertOptions(options, endpoint, isChat) {
 	if (isTogetherAI && options.n_probs > 1) {
 		options.n_probs = 1;
 	}
+	// DeepSeek API does not support logprobs/top_logprobs parameters - they will throw errors
+	// See: https://api-docs.deepseek.com/guides/thinking_mode
+	if (isDeepSeek) {
+		delete options.n_probs;
+	}
 	if ("dynatemp_range" in options && options.dynatemp_range !== 0) {
 		// oobabooga specific.
 		options.dynamic_temperature = true;
@@ -1999,11 +2005,14 @@ function openaiConvertOptions(options, endpoint, isChat) {
 	}
 	swapOption("n_ctx", "max_context_length");
 	swapOption("n_predict", "max_tokens");
-	if (isChat) {
-		options.logprobs = true;
-		swapOption("n_probs", "top_logprobs");
-	} else {
-		swapOption("n_probs", "logprobs");
+	// Handle logprobs - DeepSeek does not support logprobs in either chat or completion modes
+	if (!isDeepSeek) {
+		if (isChat) {
+			options.logprobs = true;
+			swapOption("n_probs", "top_logprobs");
+		} else {
+			swapOption("n_probs", "logprobs");
+		}
 	}
 	swapOption("repeat_penalty", "repetition_penalty");
 	swapOption("repeat_last_n", "repetition_penalty_range");
@@ -2626,6 +2635,21 @@ function Sessions({ sessionStorage, disabled }) {
 		await sessionStorage.switchSession(newId);
 	};
 
+	// Clone only API and settings (no prompt data)
+	const cloneSettings = async () => {
+		const currentSession = sessionStorage.sessions[sessionStorage.selectedSession];
+		
+		const settingsObj = { name: `Settings from ${currentSession.name}` };
+		for (const key of cloneableSettingsKeys) {
+			if (currentSession.hasOwnProperty(key)) {
+				settingsObj[key] = JSON.stringify(currentSession[key]);
+			}
+		}
+		
+		const newId = await sessionStorage.createSessionFromObject(settingsObj, false);
+		await sessionStorage.switchSession(newId);
+	};
+
 	function handleKeyDown(sessionId, key) {
 		if (event.key === 'Enter') {
 			if (isCreating)
@@ -2697,6 +2721,7 @@ function Sessions({ sessionStorage, disabled }) {
 				<button disabled=${disabled} onClick=${importSession}>Import</button>
 				<button disabled=${disabled} onClick=${exportSession}>Export</button>
 				<button disabled=${disabled} onClick=${cloneSession}>Clone</button>
+				<button disabled=${disabled} onClick=${cloneSettings} title="Clone only API settings and parameters (no prompt data)">Clone Settings</button>
 			</div>
 		</div>`;
 }
@@ -5873,6 +5898,26 @@ Write a story about Hatsune Miku and Kagamine Rin. [/INST]  Sure, how about this
 Chapter 1
 `;
 
+// Settings keys that should be cloned when using "Clone Settings" feature
+// These are API settings and sampling parameters (no prompt data)
+const cloneableSettingsKeys = [
+	'endpoint', 'endpointAPI', 'endpointAPIKey', 'endpointModel',
+	'template', 'chatMode', 'chatAPI', 'tokenStreaming', 'postSamplingProbs',
+	'seed', 'maxPredictTokens', 'contextLength',
+	'temperature', 'dynaTempRange', 'dynaTempExp',
+	'repeatPenalty', 'repeatLastN', 'penalizeNl',
+	'presencePenalty', 'frequencyPenalty',
+	'topK', 'topP', 'typicalP', 'minP', 'tfsZ',
+	'mirostat', 'mirostatTau', 'mirostatEta',
+	'xtcThreshold', 'xtcProbability',
+	'dryMultiplier', 'dryBase', 'dryAllowedLength', 'dryPenaltyRange', 'drySequenceBreakers',
+	'bannedTokens', 'ignoreEos', 'openaiPresets',
+	'stoppingStrings', 'useBasicStoppingMode', 'basicStoppingModeType',
+	'logitBias', 'grammar', 'enabledSamplers',
+	'memoryTokens', 'authorNoteTokens', 'authorNoteDepth', 'worldInfo',
+	'promptPreview', 'promptPreviewTokens'
+];
+
 const defaultTemplates = {
 	'Alpaca': {
 		'sysPre' : '### System:\\n',
@@ -5947,7 +5992,13 @@ const defaultTemplates = {
 		'instPre': '<end_of_turn>\\n<start_of_turn>user\\n',
 		'instSuf': '<end_of_turn>\\n<start_of_turn>model\\n',
 	},
-	'R1': { 
+	'DeepSeek': {
+		'sysPre' : '',
+		'sysSuf' : '',
+		'instPre': '<｜User｜>',
+		'instSuf': '<｜Assistant｜>',
+	},
+	'DeepSeek-R1': { 
 		'sysPre' : '', 
 		'sysSuf' : '', 
 		'instPre': '<｜User｜>', 
