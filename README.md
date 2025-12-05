@@ -6,8 +6,11 @@
 
 ## Features
 
-* **Multiple Backends**: Supports **llama.cpp**, **koboldcpp**, **AI Horde**, and any **OpenAI Compatible** API.
+* **Multiple Backends**: Supports **llama.cpp**, **koboldcpp**, **AI Horde**, **DeepSeek**, and any **OpenAI Compatible** API.
 * **Session Persistence**: Your prompt is automatically saved and restored, allowing you to continue seamlessly across multiple sessions. Import and export sessions for sharing or maintaining backups.
+* **Session Management**:
+  * **Clone**: Create a complete copy of the current session (including prompt data).
+  * **Clone Settings**: Create a new session with only the API settings and parameters (no prompt data). Useful for quickly starting new projects with the same configuration.
 * **Optional Server**: Can be hosted on a local Node.js server, enabling database access remotely or across your local network.
 * **Persistent Context**:
   * **Memory**: Seamlessly inject a text of your choice at the beginning of the context.
@@ -17,11 +20,20 @@
 * **Token Probability**: Hover over any token to reveal the top 10 most probable tokens at that point. Click on a probability to regenerate the text from that specific token.
   * If you're using oobabooga, make sure to use an \_HF sampler for this feature to function properly.
   * If you're using koboldcpp, token probabilities are only available with Token Streaming disabled.
+  * **Note**: Token probabilities are not available when using DeepSeek API as it does not support the logprobs parameter.
 * **Logit Bias**: Fine-tune the generation process by adjusting the likelihood bias of specific tokens on-the-fly.
 * **Completion/Chat Modes**:
   * **Completion**: Have the language model directly continue your prompt.
   * **Chat**: Mikupad simplifies using instruct models. It automatically adds the right delimiters when you start or stop generating, based on your selected template. This also structures your prompt into messages, making it compatible with the Chat Completions API (for OpenAI-compatible backends).
 * **Themes**: Customize your environment by choosing from a variety of themes.
+
+## DeepSeek API Integration
+
+Mikupad supports the DeepSeek API with the following considerations:
+
+* **Instruct Templates**: Use the "DeepSeek" template for standard chat, or "DeepSeek-R1" template for reasoning/thinking mode.
+* **API Limitations**: DeepSeek API does not support the `logprobs` parameter, so token probability features are automatically disabled when using DeepSeek endpoints.
+* **Configuration**: Set the API to "OpenAI Compatible" and use `https://api.deepseek.com` as the server endpoint.
 
 ## Getting Started
 
